@@ -1,0 +1,21 @@
+{
+  "name": "ejp-billetterie",
+  "version": "1.0.0",
+  "description": "Billetterie gratuite avec QR code – Les 7000 Adorateurs Non Souillés (EJP Charleroi)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "express": "^5.3.0",
+    "jsqr": "^1.4.0",
+    "pg": "^8.23.1",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.35.5"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "private": true
+}

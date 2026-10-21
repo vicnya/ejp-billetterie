@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Scan · 7000 Adorateurs</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#120904">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Poppins:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { min-height: 100dvh; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .top h1 { font-size: 19px; margin: 0; }
+    .counter { font-size: 14px; color: var(--muted); }
+    .counter b { color: var(--gold-2); font-size: 18px; }
+    .stage { max-width: 520px; margin: 0 auto; padding: 16px; }
+    .cam { position: relative; border-radius: 18px; overflow: hidden; background: #000; aspect-ratio: 1 / 1; border: 1px solid var(--line); }
+    .cam video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .frame { position: absolute; inset: 16%; border-radius: 18px; box-shadow: 0 0 0 100vmax rgba(0,0,0,0.35); border: 3px solid rgba(246,213,142,0.85); pointer-events: none; }
+    .cam .start { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px; }
+    .result { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; z-index: 20; }
+    .result.show { display: flex; }
+    .result.valid { background: #12723f; }
+    .result.already { background: #a86a12; }
+    .result.unknown, .result.cancelled { background: #9b2626; }
+    .result .big { width: 110px; height: 110px; border-radius: 50%; background: rgba(255,255,255,0.18); display: grid; place-items: center; margin-bottom: 18px; }
+    .result .big svg { width: 64px; height: 64px; color: #fff; }
+    .result h2 { font-family: var(--sans); font-weight: 700; font-size: 34px; color: #fff; letter-spacing: 0.02em; }
+    .result .who { font-family: var(--serif); font-size: 28px; color: #fff; margin-top: 10px; }
+    .result .det { color: rgba(255,255,255,0.88); margin-top: 6px; font-size: 16px; }
+    .result .tap { position: absolute; bottom: 28px; left: 0; right: 0; color: rgba(255,255,255,0.75); font-size: 14px; }
+    .tabs { display: flex; gap: 8px; margin: 14px 0; }
+    .tabs button { flex: 1; }
+    .list { display: grid; gap: 8px; margin-top: 12px; }
+    .item { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+    .item .n { font-size: 12px; color: var(--muted); }
+    .pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: rgba(47,168,106,0.2); color: #8ee0b4; white-space: nowrap; }
+    .login { max-width: 360px; margin: 12vh auto 0; padding: 0 16px; }
+  </style>
+</head>
+<body>
+  <section id="login" class="login hidden">
+    <div class="card">
+      <div class="eyebrow">Contrôle d’accès</div>
+      <h2 style="margin:6px 0 16px">Code PIN scanner</h2>
+      <div id="lmsg" class="msg err"></div>
+      <form id="lform">
+        <div class="field"><label for="pin">Code PIN</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" required></div>
+        <div class="field"><label for="dev">Nom du poste <span class="opt">(ex. Porte A)</span></label><input id="dev" type="text" maxlength="40"></div>
+        <button class="btn block">Commencer</button>
+      </form>
+    </div>
+  </section>
+
+  <section id="app" class="hidden">
+    <div class="top">
+      <h1>Contrôle des billets</h1>
+      <div class="counter">Présents <b id="present">0</b> / <span id="total">0</span></div>
+    </div>
+    <div class="stage">
+      <div class="tabs">
+        <button class="btn small" id="tabScan">Scanner</button>
+        <button class="btn ghost small" id="tabSearch">Recherche par nom</button>
+      </div>
+
+      <div id="paneScan">
+        <div class="cam">
+          <video id="video" playsinline muted></video>
+          <div class="frame"></div>
+          <div class="start" id="camStart">
+            <div>
+              <p class="muted" style="margin:0 0 14px">Autorise l’accès à la caméra pour scanner les QR codes.</p>
+              <button class="btn" id="startCam">Activer la caméra</button>
+            </div>
+          </div>
+        </div>
+        <p class="muted center" style="font-size:13px;margin-top:10px">Place le QR code dans le cadre. Le résultat s’affiche en plein écran.</p>
+      </div>
+
+      <div id="paneSearch" class="hidden">
+        <input id="q" type="search" placeholder="Nom, prénom ou numéro (ex. 42)" autocomplete="off">
+        <div class="list" id="list"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="result" id="result">
+    <div class="big" id="rIcon"></div>
+    <h2 id="rTitle"></h2>
+    <div class="who" id="rWho"></div>
+    <div class="det" id="rDet"></div>
+    <div class="tap">Touchez l’écran pour continuer</div>
+  </div>
+
+  <canvas id="canvas" class="hidden"></canvas>
+<script src="/vendor/jsQR.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const ICONS = {
+  valid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  already: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5.5M12 16.5v.5"/></svg>',
+  unknown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+};
+ICONS.cancelled = ICONS.unknown;
+let device = localStorage.getItem('ejp_device') || '';
+let busy = false, lastCode = '', lastAt = 0, stream = null;
+
+async function api(url, body) {
+  const r = await fetch(url, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
+  if (r.status === 401) { showLogin(); throw new Error('auth'); }
+  return r.json();
+}
+function showLogin() { $('app').classList.add('hidden'); $('login').classList.remove('hidden'); stopCam(); }
+function showApp() { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); refresh(); }
+
+fetch('/api/session/scan').then(r => r.json()).then(s => s.ok ? showApp() : showLogin());
+$('dev').value = device;
+$('lform').onsubmit = async (e) => {
+  e.preventDefault();
+  device = $('dev').value.trim();
+  try { localStorage.setItem('ejp_device', device); } catch {}
+  const r = await fetch('/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ role: 'scan', secret: $('pin').value }) });
+  const j = await r.json();
+  if (r.ok) showApp(); else { $('lmsg').textContent = j.error || 'Erreur'; $('lmsg').classList.add('show'); }
+};
+
+async function refresh() {
+  try { const s = await api('/api/scan/stats'); $('present').textContent = s.present; $('total').textContent = s.total; } catch {}
+}
+setInterval(() => { if (!$('app').classList.contains('hidden')) refresh(); }, 15000);
+
+function fmtTime(d) { return new Date(d).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' }); }
+function beep(ok) {
+  try {
+    const ctx = beep.ctx || (beep.ctx = new (window.AudioContext || window.webkitAudioContext)());
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = ok ? 880 : 220; o.type = ok ? 'sine' : 'square';
+    g.gain.value = 0.15; o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + (ok ? 0.15 : 0.35));
+  } catch {}
+  if (navigator.vibrate) navigator.vibrate(ok ? 80 : [120, 80, 120]);
+}
+
+function showResult(j) {
+  const el = $('result');
+  const r = j.result;
+  el.className = 'result show ' + r;
+  $('rIcon').innerHTML = ICONS[r];
+  $('rTitle').textContent = { valid: 'BILLET VALIDE', already: 'DÉJÀ SCANNÉ', unknown: 'BILLET INVALIDE', cancelled: 'BILLET ANNULÉ' }[r];
+  $('rWho').textContent = j.reg ? j.reg.first_name + ' ' + j.reg.last_name : '';
+  $('rDet').textContent = r === 'valid' ? 'N° ' + j.reg.number
+    : r === 'already' ? 'Entré(e) à ' + fmtTime(j.reg.checked_in_at) + (j.reg.checked_in_by ? ' · ' + j.reg.checked_in_by : '') + ' · N° ' + j.reg.number
+    : r === 'cancelled' ? 'Cette inscription a été annulée.'
+    : 'QR code non reconnu. Essaie la recherche par nom.';
+  beep(r === 'valid');
+  refresh();
+  clearTimeout(showResult.t);
+  showResult.t = setTimeout(hideResult, r === 'valid' ? 1800 : 4000);
+}
+function hideResult() { $('result').className = 'result'; busy = false; }
+$('result').onclick = hideResult;
+
+async function handleCode(code) {
+  const now = Date.now();
+  if (busy || (code === lastCode && now - lastAt < 4000)) return;
+  busy = true; lastCode = code; lastAt = now;
+  try { showResult(await api('/api/scan', { code, device })); }
+  catch (e) { busy = false; if (e.message !== 'auth') alertNet(); }
+}
+function alertNet() {
+  showResult({ result: 'unknown' });
+  $('rTitle').textContent = 'PAS DE CONNEXION';
+  $('rDet').textContent = 'Vérifie le réseau puis réessaie, ou utilise la recherche par nom.';
+}
+
+// ---- caméra
+let detector = null;
+if ('BarcodeDetector' in window) { try { detector = new BarcodeDetector({ formats: ['qr_code'] }); } catch {} }
+const canvas = $('canvas'), ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+async function startCam() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1280 } }, audio: false });
+    const v = $('video'); v.srcObject = stream; await v.play();
+    $('camStart').classList.add('hidden');
+    tick();
+  } catch (e) {
+    $('camStart').querySelector('p').textContent = 'Caméra indisponible. Vérifie l’autorisation dans le navigateur (le site doit être en https).';
+  }
+}
+function stopCam() { if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; $('camStart').classList.remove('hidden'); }
+$('startCam').onclick = startCam;
+
+async function tick() {
+  if (!stream) return;
+  const v = $('video');
+  if (!busy && v.readyState >= 2) {
+    try {
+      if (detector) {
+        const codes = await detector.detect(v);
+        if (codes[0]) handleCode(codes[0].rawValue);
+      } else {
+        const s = Math.min(v.videoWidth, v.videoHeight), size = Math.min(640, s);
+        canvas.width = canvas.height = size;
+        ctx.drawImage(v, (v.videoWidth - s) / 2, (v.videoHeight - s) / 2, s, s, 0, 0, size, size);
+        const img = ctx.getImageData(0, 0, size, size);
+        const code = jsQR(img.data, size, size, { inversionAttempts: 'dontInvert' });
+        if (code && code.data) handleCode(code.data);
+      }
+    } catch {}
+  }
+  setTimeout(() => requestAnimationFrame(tick), 120);
+}
+
+// ---- onglets & recherche
+function tab(scan) {
+  $('paneScan').classList.toggle('hidden', !scan); $('paneSearch').classList.toggle('hidden', scan);
+  $('tabScan').className = scan ? 'btn small' : 'btn ghost small';
+  $('tabSearch').className = scan ? 'btn ghost small' : 'btn small';
+  if (!scan) { $('q').focus(); }
+}
+$('tabScan').onclick = () => tab(true);
+$('tabSearch').onclick = () => tab(false);
+
+let qt;
+$('q').oninput = () => { clearTimeout(qt); qt = setTimeout(doSearch, 250); };
+async function doSearch() {
+  const q = $('q').value.trim();
+  const list = $('list');
+  if (q.length < 2 && !/^\d+$/.test(q)) { list.innerHTML = ''; return; }
+  const rows = await api('/api/scan/search?q=' + encodeURIComponent(q));
+  list.innerHTML = rows.length ? '' : '<p class="muted center">Aucun résultat.</p>';
+  rows.forEach(r => {
+    const d = document.createElement('div'); d.className = 'item';
+    const left = document.createElement('div');
+    left.innerHTML = '<div></div><div class="n"></div>';
+    left.children[0].textContent = r.first_name + ' ' + r.last_name;
+    left.children[1].textContent = 'N° ' + r.number + (r.cancelled_at ? ' · annulé' : '');
+    d.appendChild(left);
+    if (r.checked_in_at) { const p = document.createElement('span'); p.className = 'pill'; p.textContent = 'Entré(e) ' + fmtTime(r.checked_in_at); d.appendChild(p); }
+    else if (!r.cancelled_at) {
+      const b = document.createElement('button'); b.className = 'btn small'; b.textContent = 'Faire entrer';
+      b.onclick = async () => { b.disabled = true; showResult(await api('/api/scan/manual', { id: r.id, device })); doSearch(); };
+      d.appendChild(b);
+    }
+    list.appendChild(d);
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mon billet · Les 7000 Adorateurs Non Souillés</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#120904">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <div id="head" class="success-head">
+      <div class="badge-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+      <div class="eyebrow" id="eyebrow">Inscription confirmée</div>
+      <h1 id="title" style="font-size:clamp(26px,4.5vw,38px)">Ta place est réservée</h1>
+      <p class="notice" id="sub"></p>
+    </div>
+
+    <div class="ticket-wrap">
+      <a id="imgLink" target="_blank" rel="noopener"><img id="img" class="ticket-img" alt="Ton billet d’entrée avec QR code"></a>
+    </div>
+
+    <div class="actions">
+      <a class="btn" id="dl" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>
+        Télécharger mon billet
+      </a>
+      <button class="btn ghost" id="share" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="M8.2 10.8l7.6-4.1M8.2 13.2l7.6 4.1"/></svg>
+        Envoyer sur WhatsApp
+      </button>
+    </div>
+    <p class="notice">Présente le QR code à l’entrée, sur ton téléphone ou imprimé. Ce billet est personnel : un QR code ne peut être scanné qu’une seule fois.</p>
+    <p class="notice" style="margin-top:22px"><a href="/">Inscrire une autre personne</a></p>
+  </div>
+  <footer>Église des Jeunes Prodiges · Charleroi · Mercredi 11 novembre 2026 · 14h</footer>
+
+<script>
+const token = location.pathname.split('/').pop();
+const isNew = new URLSearchParams(location.search).has('new');
+const $ = (id) => document.getElementById(id);
+const pngUrl = '/billet/' + token + '.jpg';
+
+fetch('/api/ticket/' + token).then(r => r.ok ? r.json() : Promise.reject()).then(t => {
+  $("img").src = pngUrl; $("imgLink").href = pngUrl;
+  $('dl').href = pngUrl + '?dl=1';
+  $('dl').setAttribute('download', 'billet-' + t.number + '.jpg');
+  if (!isNew) {
+    $('eyebrow').textContent = 'Billet n° ' + t.number;
+    $('title').textContent = 'Ton billet, ' + t.first_name;
+    $('sub').textContent = '';
+  } else {
+    $('title').textContent = 'Merci ' + t.first_name + ', ta place est réservée';
+    $('sub').textContent = t.emailEnabled
+      ? 'Billet n° ' + t.number + '. Une copie vient d’être envoyée à ' + t.email_masked + ' (pense à vérifier tes spams).'
+      : 'Billet n° ' + t.number + '. Télécharge-le maintenant pour l’avoir sur ton téléphone.';
+    history.replaceState(null, '', location.pathname);
+  }
+  $('share').onclick = async () => {
+    const link = location.origin + '/billet/' + token;
+    try {
+      const blob = await (await fetch(pngUrl)).blob();
+      const file = new File([blob], 'billet-' + t.number + '.jpg', { type: 'image/jpeg' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        return await navigator.share({ files: [file], title: 'Mon billet', text: 'Mon billet pour Les 7000 Adorateurs Non Souillés : ' + link });
+      }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    window.open('https://wa.me/?text=' + encodeURIComponent('Mon billet pour « Les 7000 Adorateurs Non Souillés » (11/11, 14h, Charleroi) : ' + link), '_blank');
+  };
+}).catch(() => {
+  $('head').innerHTML = '<h1 style="font-size:32px;margin-top:40px">Billet introuvable</h1><p class="notice">Ce lien n’est pas valide ou le billet a été annulé.</p>';
+  document.querySelector('.ticket-wrap').remove();
+  document.querySelector('.actions').remove();
+});
+</script>
+</body>
+</html>
