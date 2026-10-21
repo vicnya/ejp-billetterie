@@ -169,3 +169,8 @@ footer { color: var(--muted); font-size: 13px; text-align: center; padding: 10px
   animation: spin 0.7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- en-tête ---------- */
+.site-head { display: flex; align-items: center; padding-top: 16px; }
+.site-head .logo { height: 52px; width: auto; opacity: 0.95; }
+@media (max-width: 520px) { .site-head .logo { height: 44px; } }
