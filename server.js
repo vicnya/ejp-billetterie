@@ -462,6 +462,30 @@ admin.post('/registrations/:id/:action', async (req, res, next) => {
   }
 });
 
+// Suppression définitive d'un billet (tests, erreurs)
+admin.delete('/registrations/:id', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    await db.pool.query('DELETE FROM scan_log WHERE reg_id=$1', [id]);
+    const { rowCount } = await db.pool.query('DELETE FROM registrations WHERE id=$1', [id]);
+    if (!rowCount) return res.status(404).json({ error: 'Billet introuvable.' });
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Remise à zéro complète (avant le lancement, après les tests)
+admin.post('/reset', async (req, res, next) => {
+  try {
+    if ((req.body || {}).confirm !== 'SUPPRIMER') return res.status(400).json({ error: 'Tape SUPPRIMER pour confirmer.' });
+    await db.pool.query('TRUNCATE scan_log, registrations RESTART IDENTITY');
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
 admin.post('/settings', async (req, res, next) => {
   try {
     const b = req.body || {};
