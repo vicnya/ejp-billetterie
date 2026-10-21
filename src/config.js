@@ -22,6 +22,7 @@ module.exports = {
   MAIL_FROM: env.MAIL_FROM || '',
   MAIL_FROM_NAME: env.MAIL_FROM_NAME || 'EJP Charleroi',
   MAIL_REPLY_TO: env.MAIL_REPLY_TO || '',
+  ADMIN_NOTIFY_EMAIL: env.ADMIN_NOTIFY_EMAIL || '',
   TRUST_PROXY: bool(env.TRUST_PROXY, true),
 
   EVENT_NAME: 'Les 7000 Adorateurs Non Souillés',

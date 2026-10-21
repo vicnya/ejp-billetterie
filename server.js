@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const config = require('./src/config');
 const db = require('./src/db');
 const { renderTicket } = require('./src/ticket');
-const { sendTicketEmail } = require('./src/mail');
+const { sendTicketEmail, sendAdminNotification } = require('./src/mail');
 
 const app = express();
 if (config.TRUST_PROXY) app.set('trust proxy', 1);
@@ -84,6 +84,16 @@ async function deliverEmail(reg) {
   } catch (e) {
     console.error('[mail]', reg.id, e.message);
     await db.pool.query('UPDATE registrations SET email_error=$2 WHERE id=$1', [reg.id, e.message.slice(0, 300)]);
+  }
+}
+
+async function notifyAdmin(reg) {
+  if (!config.ADMIN_NOTIFY_EMAIL || !config.MAIL_PROVIDER) return;
+  try {
+    const capacity = Number(await db.getSetting('capacity', config.CAPACITY));
+    await sendAdminNotification(reg, { total: await db.activeCount(), capacity });
+  } catch (e) {
+    console.error('[notif admin]', reg.id, e.message);
   }
 }
 
@@ -206,7 +216,7 @@ app.post('/api/register', async (req, res, next) => {
       return res.json({ status: 'duplicate', emailEnabled: !!config.MAIL_PROVIDER });
     }
 
-    await deliverEmail(result.reg); // attendu : indispensable en serverless
+    await Promise.all([deliverEmail(result.reg), notifyAdmin(result.reg)]); // attendu : indispensable en serverless
     res.json({ status: 'ok', token: result.reg.token });
   } catch (e) {
     next(e);

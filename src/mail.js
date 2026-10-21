@@ -106,4 +106,50 @@ async function sendTicketEmail(reg, jpg) {
   throw new Error('Envoi e-mail non configuré (MAIL_PROVIDER)');
 }
 
-module.exports = { sendTicketEmail, ticketUrl };
+async function sendPlain(to, subject, html, text) {
+  if (config.MAIL_PROVIDER === 'resend') {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${config.RESEND_API_KEY}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ from: `${config.MAIL_FROM_NAME} <${config.MAIL_FROM}>`, to: [to], subject, html, text }),
+    });
+    if (!res.ok) throw new Error(`Resend ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    return;
+  }
+  if (config.MAIL_PROVIDER === 'brevo') {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'api-key': config.BREVO_API_KEY, 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ sender: { email: config.MAIL_FROM, name: config.MAIL_FROM_NAME }, to: [{ email: to }], subject, htmlContent: html, textContent: text }),
+    });
+    if (!res.ok) throw new Error(`Brevo ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    return;
+  }
+  throw new Error('Envoi e-mail non configuré (MAIL_PROVIDER)');
+}
+
+/** Prévient l'organisateur à chaque nouvelle inscription. */
+async function sendAdminNotification(reg, stats) {
+  if (!config.ADMIN_NOTIFY_EMAIL || !config.MAIL_PROVIDER) return;
+  const number = config.formatNumber(reg.number);
+  const name = `${reg.first_name} ${reg.last_name}`;
+  const subject = `Nouvelle inscription ${number} – ${name} (${stats.total}/${stats.capacity})`;
+  const rows = [
+    ['Billet', number],
+    ['Nom', name],
+    ['E-mail', reg.email],
+    ['Téléphone', reg.phone || '—'],
+    ['Inscrits', `${stats.total} / ${stats.capacity} (reste ${Math.max(0, stats.capacity - stats.total)})`],
+  ];
+  const text = rows.map(([k, v]) => `${k} : ${v}`).join('\n') + `\n\nTableau de bord : ${config.BASE_URL}/admin\nBillet : ${ticketUrl(reg)}`;
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#22120a;max-width:520px">
+    <p style="font-size:16px;margin:0 0 12px"><b>Nouvelle inscription</b> – ${esc(config.EVENT_NAME)}</p>
+    <table cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%">${rows
+      .map(([k, v]) => `<tr><td style="color:#7a5a36;border-bottom:1px solid #eee;width:110px">${esc(k)}</td><td style="border-bottom:1px solid #eee"><b>${esc(v)}</b></td></tr>`)
+      .join('')}</table>
+    <p style="margin:16px 0 0"><a href="${config.BASE_URL}/admin" style="color:#b97f2c">Ouvrir le tableau de bord</a> · <a href="${ticketUrl(reg)}" style="color:#b97f2c">Voir le billet</a></p>
+  </div>`;
+  await sendPlain(config.ADMIN_NOTIFY_EMAIL, subject, html, text);
+}
+
+module.exports = { sendTicketEmail, sendAdminNotification, ticketUrl };
