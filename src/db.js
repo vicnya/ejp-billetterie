@@ -2,6 +2,9 @@ const { Pool } = require('pg');
 const crypto = require('crypto');
 const config = require('./config');
 
+if (!process.env.DATABASE_URL && process.env.POSTGRES_URL) process.env.DATABASE_URL = process.env.POSTGRES_URL;
+
+config.DATABASE_URL = config.DATABASE_URL || process.env.DATABASE_URL;
 const needsSsl =
   config.DATABASE_URL &&
   !/localhost|127\.0\.0\.1|\.railway\.internal/.test(config.DATABASE_URL) &&
@@ -10,7 +13,7 @@ const needsSsl =
 const pool = new Pool({
   connectionString: config.DATABASE_URL,
   ssl: needsSsl ? { rejectUnauthorized: false } : false,
-  max: 10,
+  max: process.env.VERCEL ? 3 : 10,
 });
 
 async function init() {

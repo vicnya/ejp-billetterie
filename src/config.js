@@ -7,8 +7,8 @@ function bool(v, def) {
 
 module.exports = {
   PORT: Number(env.PORT || 3000),
-  DATABASE_URL: env.DATABASE_URL,
-  BASE_URL: (env.BASE_URL || '').replace(/\/$/, ''),
+  DATABASE_URL: env.DATABASE_URL || env.POSTGRES_URL,
+  BASE_URL: (env.BASE_URL || (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : '')).replace(/\/$/, ''),
   CAPACITY: Number(env.CAPACITY || 100),
   ADMIN_PASSWORD: env.ADMIN_PASSWORD || '',
   SCAN_PIN: env.SCAN_PIN || '',

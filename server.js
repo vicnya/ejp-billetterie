@@ -11,6 +11,13 @@ if (config.TRUST_PROXY) app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(express.json({ limit: '20kb' }));
 
+// Initialisation de la base une seule fois (compatible serveur classique et Vercel)
+let ready = null;
+app.use((req, res, next) => {
+  if (!ready) ready = db.init().catch((e) => { ready = null; throw e; });
+  ready.then(() => next(), next);
+});
+
 const PUBLIC = path.join(__dirname, 'public');
 const page = (f) => (req, res) => res.sendFile(path.join(PUBLIC, f));
 
@@ -195,11 +202,11 @@ app.post('/api/register', async (req, res, next) => {
     if (result.status === 'duplicate') {
       const r = result.reg;
       const recent = r.email_sent_at && Date.now() - new Date(r.email_sent_at).getTime() < 3 * 60 * 1000;
-      if (!recent) deliverEmail(r);
+      if (!recent) await deliverEmail(r);
       return res.json({ status: 'duplicate', emailEnabled: !!config.MAIL_PROVIDER });
     }
 
-    deliverEmail(result.reg); // en arrière-plan
+    await deliverEmail(result.reg); // attendu : indispensable en serverless
     res.json({ status: 'ok', token: result.reg.token });
   } catch (e) {
     next(e);
@@ -484,11 +491,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Erreur serveur, réessaie dans un instant.' });
 });
 
-db.init()
-  .then(() => {
-    app.listen(config.PORT, () => console.log(`Billetterie prête sur :${config.PORT}`));
-  })
-  .catch((e) => {
-    console.error('Init DB échouée', e);
-    process.exit(1);
-  });
+module.exports = app;
+
+if (require.main === module) {
+  app.listen(config.PORT, () => console.log(`Billetterie prête sur :${config.PORT}`));
+}

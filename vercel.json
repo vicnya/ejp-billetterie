@@ -1,0 +1,10 @@
+{
+  "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "{fonts,assets,public,src}/**",
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  }
+}
