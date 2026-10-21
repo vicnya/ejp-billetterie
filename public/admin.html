@@ -108,7 +108,6 @@
     <div class="tools">
       <input type="search" id="q" placeholder="Rechercher un nom, un e-mail, un numéro…">
       <div class="inline">
-        <button class="btn ghost small" id="resetBtn" style="color:#ff9b9b">Tout supprimer</button>
         <button class="btn ghost small" id="addBtn">Ajouter une personne</button>
         <a class="btn small" href="/api/admin/export.csv">Exporter (CSV)</a>
       </div>
@@ -258,14 +257,39 @@ function rowEl(r) {
   } else add('Rétablir', 'restore');
   const del = document.createElement('button'); del.textContent = 'Supprimer'; del.style.color = '#ff9b9b';
   del.onclick = async () => {
-    if (!(await confirmBox('Supprimer définitivement le billet ' + r.number + ' de ' + r.first_name + ' ' + r.last_name + ' ? Cette action est irréversible.'))) return;
+    const short = r.number.slice(-4);
+    if (!(await typedConfirm(
+      'Supprimer le billet ' + r.number,
+      'Le billet de ' + r.first_name + ' ' + r.last_name + ' sera supprimé définitivement : son QR code ne marchera plus et la place sera libérée. Cette action est irréversible.',
+      short,
+      'Tape ' + short + ' pour confirmer'
+    ))) return;
     del.disabled = true;
-    try { await api('/api/admin/registrations/' + r.id, {}, 'DELETE'); toast('Billet supprimé'); load(); }
+    try { await api('/api/admin/registrations/' + r.id, {}, 'DELETE'); toast('Billet ' + r.number + ' supprimé'); load(); }
     catch (err) { toast(err.message); del.disabled = false; }
   };
   box.appendChild(del);
   act.appendChild(box); tr.appendChild(act);
   return tr;
+}
+
+// confirmation renforcée : il faut retaper un code
+function typedConfirm(title, text, expected, label) {
+  return new Promise(res => {
+    const d = document.createElement('dialog');
+    d.innerHTML = '<h2 style="font-size:22px;margin-bottom:10px"></h2><p class="muted" style="margin:0 0 14px"></p><div class="field"><label></label><input type="text" inputmode="numeric" autocomplete="off"></div><div class="inline" style="justify-content:flex-end"><button class="btn ghost small">Annuler</button><button class="btn small" style="background:#d64545;color:#fff" disabled>Supprimer</button></div>';
+    d.querySelector('h2').textContent = title;
+    d.querySelector('p').textContent = text;
+    d.querySelector('label').textContent = label;
+    const inp = d.querySelector('input');
+    const [no, yes] = d.querySelectorAll('button');
+    inp.oninput = () => { yes.disabled = inp.value.trim() !== expected; };
+    const done = (v) => { d.close(); d.remove(); res(v); };
+    no.onclick = () => done(false);
+    yes.onclick = () => { if (inp.value.trim() === expected) done(true); };
+    d.addEventListener('cancel', () => done(false));
+    document.body.appendChild(d); d.showModal(); inp.focus();
+  });
 }
 
 // confirmation sans boîte de dialogue bloquante du navigateur
@@ -288,18 +312,6 @@ $('tglOpen').onclick = async () => {
 $('saveCap').onclick = async () => {
   try { await api('/api/admin/settings', { capacity: Number($('cap').value) }); toast('Jauge mise à jour'); $('cap').blur(); loadStats(); }
   catch (e) { toast(e.message); }
-};
-
-$('resetBtn').onclick = () => {
-  const d = document.createElement('dialog');
-  d.innerHTML = '<h2 style="font-size:22px;margin-bottom:10px">Tout supprimer</h2><p class="muted" style="margin:0 0 14px">Supprime définitivement toutes les inscriptions et tous les scans, et repart du billet 7000-0001. À utiliser uniquement après tes tests, avant d’ouvrir les inscriptions au public.</p><div class="field"><label>Tape SUPPRIMER pour confirmer</label><input type="text" autocomplete="off"></div><div class="msg err"></div><div class="inline" style="justify-content:flex-end"><button class="btn ghost small">Annuler</button><button class="btn small" style="background:#d64545;color:#fff">Tout supprimer</button></div>';
-  const [cancel, ok] = d.querySelectorAll('button'); const inp = d.querySelector('input'); const m = d.querySelector('.msg');
-  cancel.onclick = () => { d.close(); d.remove(); };
-  ok.onclick = async () => {
-    try { await api('/api/admin/reset', { confirm: inp.value.trim() }); d.close(); d.remove(); toast('Toutes les inscriptions ont été supprimées'); load(); }
-    catch (err) { m.textContent = err.message; m.classList.add('show'); }
-  };
-  document.body.appendChild(d); d.showModal(); inp.focus();
 };
 
 const addDlg = $('addDlg');

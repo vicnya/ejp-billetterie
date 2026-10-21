@@ -475,17 +475,6 @@ admin.delete('/registrations/:id', async (req, res, next) => {
   }
 });
 
-// Remise à zéro complète (avant le lancement, après les tests)
-admin.post('/reset', async (req, res, next) => {
-  try {
-    if ((req.body || {}).confirm !== 'SUPPRIMER') return res.status(400).json({ error: 'Tape SUPPRIMER pour confirmer.' });
-    await db.pool.query('TRUNCATE scan_log, registrations RESTART IDENTITY');
-    res.json({ ok: true });
-  } catch (e) {
-    next(e);
-  }
-});
-
 admin.post('/settings', async (req, res, next) => {
   try {
     const b = req.body || {};
