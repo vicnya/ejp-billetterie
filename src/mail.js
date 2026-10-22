@@ -113,7 +113,7 @@ async function sendPlain(to, subject, html, text) {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${config.RESEND_API_KEY}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ from: `${config.MAIL_FROM_NAME} <${config.MAIL_FROM}>`, to: [to], subject, html, text }),
+      body: JSON.stringify({ from: `${config.MAIL_FROM_NAME} <${config.MAIL_FROM}>`, to: [].concat(to), subject, html, text }),
     });
     if (!res.ok) throw new Error(`Resend ${res.status}: ${(await res.text()).slice(0, 300)}`);
     return;
@@ -122,7 +122,7 @@ async function sendPlain(to, subject, html, text) {
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: { 'api-key': config.BREVO_API_KEY, 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ sender: { email: config.MAIL_FROM, name: config.MAIL_FROM_NAME }, to: [{ email: to }], subject, htmlContent: html, textContent: text }),
+      body: JSON.stringify({ sender: { email: config.MAIL_FROM, name: config.MAIL_FROM_NAME }, to: [].concat(to).map((email) => ({ email })), subject, htmlContent: html, textContent: text }),
     });
     if (!res.ok) throw new Error(`Brevo ${res.status}: ${(await res.text()).slice(0, 300)}`);
     return;
@@ -151,7 +151,9 @@ async function sendAdminNotification(reg, stats) {
       .join('')}</table>
     <p style="margin:16px 0 0"><a href="${config.BASE_URL}/admin" style="color:#b97f2c">Ouvrir le tableau de bord</a> · <a href="${ticketUrl(reg)}" style="color:#b97f2c">Voir le billet</a></p>
   </div>`;
-  await sendPlain(config.ADMIN_NOTIFY_EMAIL, subject, html, text);
+  // Plusieurs destinataires possibles : adresses séparées par des virgules
+  const recipients = config.ADMIN_NOTIFY_EMAIL.split(/[,;\s]+/).map((e) => e.trim()).filter(Boolean);
+  if (recipients.length) await sendPlain(recipients, subject, html, text);
 }
 
 module.exports = { sendTicketEmail, sendAdminNotification, ticketUrl };
