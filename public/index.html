@@ -113,6 +113,10 @@ $('form').addEventListener('submit', async (e) => {
       if (!j.emailEnabled) $('dup-text').textContent = 'Cette adresse e-mail a déjà une place. Retrouve ton billet via le lien reçu après ton inscription, ou contacte l’organisation.';
       return show('dup');
     }
+    if (j.status === 'duplicate_phone') {
+      $('dup-text').textContent = 'Ce numéro de téléphone est déjà inscrit. Si c’est toi, ton billet a été renvoyé à l’adresse utilisée lors de ta première inscription (' + (j.email_masked || '') + '). Une seule place par personne.';
+      return show('dup');
+    }
     if (j.status === 'full' || j.status === 'closed') return closedView(j.status);
     err(j.error || 'Une erreur est survenue. Réessaie.');
   } catch { err('Connexion impossible. Vérifie ton réseau et réessaie.'); }

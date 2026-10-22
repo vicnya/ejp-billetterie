@@ -203,8 +203,21 @@ app.post('/api/register', async (req, res, next) => {
       'SELECT * FROM registrations WHERE lower(email)=lower($1) AND cancelled_at IS NULL',
       [email]
     );
+    // Même numéro de téléphone (comparaison sur les 9 derniers chiffres : +32 470… = 0470…)
+    let phoneDup = null;
+    const phoneKey = phone.replace(/\D/g, '').slice(-9);
+    if (!existing.rows[0] && phoneKey.length >= 8) {
+      const { rows } = await db.pool.query(
+        `SELECT * FROM registrations WHERE cancelled_at IS NULL AND phone IS NOT NULL
+         AND right(regexp_replace(phone, '\\D', '', 'g'), 9) = $1 LIMIT 1`,
+        [phoneKey]
+      );
+      phoneDup = rows[0] || null;
+    }
     const result = existing.rows[0]
       ? { status: 'duplicate', reg: existing.rows[0] }
+      : phoneDup
+      ? { status: 'duplicate_phone', reg: phoneDup }
       : state !== 'open'
       ? { status: state }
       : await db.register({ first_name, last_name, email, phone });
@@ -216,6 +229,12 @@ app.post('/api/register', async (req, res, next) => {
       const recent = r.email_sent_at && Date.now() - new Date(r.email_sent_at).getTime() < 3 * 60 * 1000;
       if (!recent) await deliverEmail(r);
       return res.json({ status: 'duplicate', emailEnabled: !!config.MAIL_PROVIDER });
+    }
+    if (result.status === 'duplicate_phone') {
+      const r = result.reg;
+      const recent = r.email_sent_at && Date.now() - new Date(r.email_sent_at).getTime() < 3 * 60 * 1000;
+      if (!recent) await deliverEmail(r);
+      return res.json({ status: 'duplicate_phone', email_masked: r.email.replace(/^(.{2}).*(@.*)$/, '$1•••$2'), emailEnabled: !!config.MAIL_PROVIDER });
     }
 
     await Promise.all([deliverEmail(result.reg), notifyAdmin(result.reg)]); // attendu : indispensable en serverless
@@ -400,7 +419,11 @@ admin.get('/registrations', async (req, res, next) => {
   try {
     if (req.query.q) return res.json(await search(req.query.q, 200));
     const { rows } = await db.pool.query('SELECT * FROM registrations ORDER BY number DESC');
-    res.json(rows.map(regAdmin));
+    // Signale les doublons probables (même nom) parmi les inscriptions actives
+    const key = (r) => `${r.first_name} ${r.last_name}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim().split(' ').sort().join(' ');
+    const counts = {};
+    rows.filter((r) => !r.cancelled_at).forEach((r) => { counts[key(r)] = (counts[key(r)] || 0) + 1; });
+    res.json(rows.map((r) => ({ ...regAdmin(r), dup_name: !r.cancelled_at && counts[key(r)] > 1 })));
   } catch (e) {
     next(e);
   }

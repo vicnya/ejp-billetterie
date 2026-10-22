@@ -233,7 +233,9 @@ function td(text) { const c = document.createElement('td'); c.textContent = text
 function rowEl(r) {
   const tr = document.createElement('tr'); if (r.cancelled_at) tr.className = 'cancel';
   tr.appendChild(td(r.number));
-  const name = td(r.first_name + ' ' + r.last_name); name.style.fontWeight = 500; tr.appendChild(name);
+  const name = td(r.first_name + ' ' + r.last_name); name.style.fontWeight = 500;
+  if (r.dup_name) { const t = document.createElement('span'); t.className = 'tag err'; t.style.marginLeft = '6px'; t.textContent = 'même nom'; t.title = 'Une autre inscription active porte le même nom : doublon possible'; name.appendChild(t); }
+  tr.appendChild(name);
   const c = td(''); c.innerHTML = '<div></div><div class="muted" style="font-size:12px"></div>';
   c.children[0].textContent = r.email; c.children[1].textContent = r.phone || ''; tr.appendChild(c);
   tr.appendChild(td(fmt(r.created_at) + (r.source === 'admin' ? ' (admin)' : '')));
