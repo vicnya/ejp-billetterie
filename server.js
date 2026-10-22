@@ -88,10 +88,12 @@ async function deliverEmail(reg) {
 }
 
 async function notifyAdmin(reg) {
-  if (!config.ADMIN_NOTIFY_EMAIL || !config.MAIL_PROVIDER) return;
+  if (!config.MAIL_PROVIDER) return;
   try {
+    const extra = await db.getSetting('notify_emails', '');
+    if (!config.ADMIN_NOTIFY_EMAIL && !extra) return;
     const capacity = Number(await db.getSetting('capacity', config.CAPACITY));
-    await sendAdminNotification(reg, { total: await db.activeCount(), capacity });
+    await sendAdminNotification(reg, { total: await db.activeCount(), capacity }, extra);
   } catch (e) {
     console.error('[notif admin]', reg.id, e.message);
   }
@@ -384,6 +386,7 @@ admin.get('/stats', async (req, res, next) => {
       state: await registrationState(),
       close_at: config.CLOSE_AT,
       mail_enabled: !!config.MAIL_PROVIDER,
+      notify_emails: await db.getSetting('notify_emails', ''),
       daily,
       arrivals,
       scans,
@@ -488,6 +491,13 @@ admin.delete('/registrations/:id', async (req, res, next) => {
 admin.post('/settings', async (req, res, next) => {
   try {
     const b = req.body || {};
+    if (b.notify_emails !== undefined) {
+      const list = String(b.notify_emails).split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
+      const bad = list.filter((e) => !EMAIL_RE.test(e));
+      if (bad.length) return res.status(400).json({ error: 'Adresse invalide : ' + bad.join(', ') });
+      if (list.length > 5) return res.status(400).json({ error: '5 adresses maximum.' });
+      await db.setSetting('notify_emails', list.join(','));
+    }
     if (b.registration_open !== undefined) await db.setSetting('registration_open', b.registration_open ? 'true' : 'false');
     if (b.capacity !== undefined) {
       const c = Math.max(1, Math.min(5000, Number(b.capacity) || config.CAPACITY));

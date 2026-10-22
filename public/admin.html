@@ -102,6 +102,10 @@
         <div class="switch"><span>Jauge (non visible du public)</span><span class="inline"><input type="number" id="cap" min="1" max="5000"><button class="btn small" id="saveCap">OK</button></span></div>
         <div class="muted" style="font-size:13px" id="closeAt"></div>
         <div class="muted" style="font-size:13px" id="scanInfo"></div>
+        <div class="field" style="margin:4px 0 0">
+          <label for="notify">Recevoir un e-mail à chaque inscription <span class="opt">(adresses séparées par des virgules)</span></label>
+          <div class="inline"><input type="text" id="notify" placeholder="prenom@exemple.com, autre@exemple.com" style="width:100%"><button class="btn small" id="saveNotify">OK</button></div>
+        </div>
       </div>
     </div>
 
@@ -182,6 +186,7 @@ async function loadStats() {
   $('stateTxt').textContent = label; $('dot').className = 'dot ' + s.state;
   $('tglOpen').classList.toggle('on', s.open);
   if (document.activeElement !== $('cap')) $('cap').value = s.capacity;
+  if (document.activeElement !== $('notify')) $('notify').value = (s.notify_emails || '').split(',').filter(Boolean).join(', ');
   $('closeAt').textContent = 'Fermeture automatique : ' + new Date(s.close_at).toLocaleString('fr-BE', { dateStyle: 'full', timeStyle: 'short' });
   const sc = Object.fromEntries(s.scans.map(x => [x.result, x.n]));
   $('scanInfo').textContent = 'Scans : ' + (sc.valid || 0) + ' valides · ' + (sc.already || 0) + ' doublons · ' + ((sc.unknown || 0) + (sc.cancelled || 0)) + ' refusés';
@@ -307,6 +312,10 @@ function confirmBox(text) {
 
 $('tglOpen').onclick = async () => {
   try { await api('/api/admin/settings', { registration_open: !stats.open }); toast(stats.open ? 'Inscriptions fermées' : 'Inscriptions ouvertes'); loadStats(); }
+  catch (e) { toast(e.message); }
+};
+$('saveNotify').onclick = async () => {
+  try { await api('/api/admin/settings', { notify_emails: $('notify').value }); toast('Adresses de notification enregistrées'); $('notify').blur(); loadStats(); }
   catch (e) { toast(e.message); }
 };
 $('saveCap').onclick = async () => {

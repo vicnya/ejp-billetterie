@@ -131,8 +131,8 @@ async function sendPlain(to, subject, html, text) {
 }
 
 /** Prévient l'organisateur à chaque nouvelle inscription. */
-async function sendAdminNotification(reg, stats) {
-  if (!config.ADMIN_NOTIFY_EMAIL || !config.MAIL_PROVIDER) return;
+async function sendAdminNotification(reg, stats, extra = '') {
+  if (!config.MAIL_PROVIDER) return;
   const number = config.formatNumber(reg.number);
   const name = `${reg.first_name} ${reg.last_name}`;
   const subject = `Nouvelle inscription ${number} – ${name} (${stats.total}/${stats.capacity})`;
@@ -152,7 +152,7 @@ async function sendAdminNotification(reg, stats) {
     <p style="margin:16px 0 0"><a href="${config.BASE_URL}/admin" style="color:#b97f2c">Ouvrir le tableau de bord</a> · <a href="${ticketUrl(reg)}" style="color:#b97f2c">Voir le billet</a></p>
   </div>`;
   // Plusieurs destinataires possibles : adresses séparées par des virgules
-  const recipients = config.ADMIN_NOTIFY_EMAIL.split(/[,;\s]+/).map((e) => e.trim()).filter(Boolean);
+  const recipients = [...new Set(`${config.ADMIN_NOTIFY_EMAIL},${extra}`.split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)))];
   if (recipients.length) await sendPlain(recipients, subject, html, text);
 }
 
