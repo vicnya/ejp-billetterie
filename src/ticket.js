@@ -124,7 +124,7 @@ function buildSvg(reg) {
     <g fill="#1a0d05">${qrRects(qrPayload(reg.token), qrX, qrY, qrSize)}</g>
     <text x="${sx + 300}" y="641" text-anchor="middle" font-family="Poppins" font-weight="500" font-size="13" letter-spacing="2" fill="#7a5a36">PRÉSENTE CE QR CODE À L'ENTRÉE</text>
 
-    <text x="${sx + 300}" y="692" text-anchor="middle" font-family="Poppins" font-size="15" fill="#f1dcb4">${esc(config.EVENT_ADDRESS)}</text>
+    <text x="${sx + 300}" y="692" text-anchor="middle" font-family="Poppins" font-size="15" fill="#f1dcb4">${esc(config.EVENT_ADDRESS)} · Agape à la fin</text>
   </g>
   <!-- encoches -->
   <circle cx="${sx}" cy="-2" r="22" fill="#0b0603"/>
