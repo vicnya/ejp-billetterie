@@ -17,7 +17,7 @@ function buildEmail(reg) {
     '',
     `Ton inscription à « ${config.EVENT_NAME} » est confirmée.`,
     `${config.EVENT_DATE_LONG} à 14h – ${config.EVENT_ADDRESS}`,
-    'Une agape est prévue à la fin.',
+    'Repas offert à la fin.',
     `Billet n° ${number}`,
     '',
     `Ton billet (avec QR code) est en pièce jointe. Tu peux aussi le retrouver ici : ${url}`,
@@ -45,7 +45,7 @@ function buildEmail(reg) {
               <b>Billet n°</b> ${esc(number)}<br>
               <b>Date</b> ${esc(config.EVENT_DATE_LONG)} à 14h<br>
               <b>Lieu</b> ${esc(config.EVENT_ADDRESS)}<br>
-              <b>Agape</b> à la fin
+              <b>Repas</b> offert à la fin
             </td></tr>
           </table>
         </td></tr>

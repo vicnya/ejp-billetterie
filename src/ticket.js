@@ -97,10 +97,10 @@ function buildSvg(reg) {
   </defs>
   <g clip-path="url(#ticket)">
     <image x="0" y="0" width="${POSTER_W}" height="${H}" preserveAspectRatio="xMidYMid slice" xlink:href="data:image/jpeg;base64,${POSTER_B64}"/>
-    <!-- couvre le bouton "INSCRIS-TOI" de l'affiche -->
-    <rect x="546" y="606" width="168" height="52" rx="8" fill="#3b1c08"/>
-    <rect x="540" y="609" width="222" height="46" rx="23" fill="url(#gold)"/>
-    <text x="651" y="638" text-anchor="middle" font-family="Cinzel" font-weight="600" font-size="15" letter-spacing="1.5" fill="#2a1406">ENTRÉE GRATUITE</text>
+    <!-- couvre le bouton "INSCRIS-TOI" et le QR d'inscription de l'affiche (un 2e QR sur le billet perturberait le scan) -->
+    <rect x="484" y="592" width="236" height="100" rx="10" fill="#3b1c08"/>
+    <rect x="490" y="619" width="224" height="46" rx="23" fill="url(#gold)"/>
+    <text x="602" y="648" text-anchor="middle" font-family="Cinzel" font-weight="600" font-size="15" letter-spacing="1.5" fill="#2a1406">ENTRÉE GRATUITE</text>
 
     <rect x="${sx}" y="0" width="600" height="${H}" fill="url(#stubBg)"/>
     <rect x="${sx}" y="0" width="600" height="${H}" fill="url(#glow)"/>
@@ -124,7 +124,7 @@ function buildSvg(reg) {
     <g fill="#1a0d05">${qrRects(qrPayload(reg.token), qrX, qrY, qrSize)}</g>
     <text x="${sx + 300}" y="641" text-anchor="middle" font-family="Poppins" font-weight="500" font-size="13" letter-spacing="2" fill="#7a5a36">PRÉSENTE CE QR CODE À L'ENTRÉE</text>
 
-    <text x="${sx + 300}" y="692" text-anchor="middle" font-family="Poppins" font-size="15" fill="#f1dcb4">${esc(config.EVENT_ADDRESS)} · Agape à la fin</text>
+    <text x="${sx + 300}" y="692" text-anchor="middle" font-family="Poppins" font-size="15" fill="#f1dcb4">${esc(config.EVENT_ADDRESS)} · Repas offert</text>
   </g>
   <!-- encoches -->
   <circle cx="${sx}" cy="-2" r="22" fill="#0b0603"/>
