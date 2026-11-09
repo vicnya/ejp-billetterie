@@ -62,12 +62,12 @@ function buildEmail(reg) {
   return { subject, text, html };
 }
 
-async function sendTicketEmail(reg, jpg) {
+async function sendTicketEmailVia(provider, reg, jpg) {
   const { subject, text, html } = buildEmail(reg);
   const filename = `billet-${config.formatNumber(reg.number)}.jpg`;
   const b64 = Buffer.from(jpg).toString('base64');
 
-  if (config.MAIL_PROVIDER === 'brevo') {
+  if (provider === 'brevo') {
     const body = {
       sender: { email: config.MAIL_FROM, name: config.MAIL_FROM_NAME },
       to: [{ email: reg.email, name: `${reg.first_name} ${reg.last_name}` }],
@@ -86,7 +86,7 @@ async function sendTicketEmail(reg, jpg) {
     return;
   }
 
-  if (config.MAIL_PROVIDER === 'resend') {
+  if (provider === 'resend') {
     const body = {
       from: `${config.MAIL_FROM_NAME} <${config.MAIL_FROM}>`,
       to: [reg.email],
@@ -108,8 +108,8 @@ async function sendTicketEmail(reg, jpg) {
   throw new Error('Envoi e-mail non configuré (MAIL_PROVIDER)');
 }
 
-async function sendPlain(to, subject, html, text) {
-  if (config.MAIL_PROVIDER === 'resend') {
+async function sendPlainVia(provider, to, subject, html, text) {
+  if (provider === 'resend') {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${config.RESEND_API_KEY}`, 'content-type': 'application/json' },
@@ -118,7 +118,7 @@ async function sendPlain(to, subject, html, text) {
     if (!res.ok) throw new Error(`Resend ${res.status}: ${(await res.text()).slice(0, 300)}`);
     return;
   }
-  if (config.MAIL_PROVIDER === 'brevo') {
+  if (provider === 'brevo') {
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: { 'api-key': config.BREVO_API_KEY, 'content-type': 'application/json', accept: 'application/json' },
@@ -129,6 +129,21 @@ async function sendPlain(to, subject, html, text) {
   }
   throw new Error('Envoi e-mail non configuré (MAIL_PROVIDER)');
 }
+
+// Brevo d'abord ; en cas d'échec, Resend en secours (si sa clé existe)
+async function withFallback(run) {
+  try {
+    return await run(config.MAIL_PROVIDER);
+  } catch (e) {
+    if (config.MAIL_PROVIDER === 'brevo' && config.RESEND_API_KEY) {
+      console.error('[mail] Brevo en échec, secours Resend :', e.message);
+      return run('resend');
+    }
+    throw e;
+  }
+}
+const sendTicketEmail = (reg, jpg) => withFallback((p) => sendTicketEmailVia(p, reg, jpg));
+const sendPlain = (to, subject, html, text) => withFallback((p) => sendPlainVia(p, to, subject, html, text));
 
 /** Prévient l'organisateur à chaque nouvelle inscription. */
 async function sendAdminNotification(reg, stats, extra = '') {

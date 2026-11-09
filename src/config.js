@@ -16,7 +16,8 @@ module.exports = {
   // Fin des inscriptions (ISO). Par défaut : le jour J à 13h, heure de Bruxelles.
   CLOSE_AT: env.CLOSE_AT || '2026-11-11T13:00:00+01:00',
 
-  MAIL_PROVIDER: (env.MAIL_PROVIDER || '').toLowerCase(), // "brevo" | "resend" | ""
+  // Brevo prioritaire dès que sa clé est définie, sinon MAIL_PROVIDER
+  MAIL_PROVIDER: env.BREVO_API_KEY ? 'brevo' : (env.MAIL_PROVIDER || '').toLowerCase(), // "brevo" | "resend" | ""
   BREVO_API_KEY: env.BREVO_API_KEY || '',
   RESEND_API_KEY: env.RESEND_API_KEY || '',
   MAIL_FROM: env.MAIL_FROM || '',
