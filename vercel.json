@@ -1,10 +1,25 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api"
+    }
+  ],
   "functions": {
     "api/index.js": {
       "includeFiles": "{fonts,assets,public,src}/**",
       "memory": 1024,
       "maxDuration": 30
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/reminder/veille",
+      "schedule": "0 17 10 11 *"
+    },
+    {
+      "path": "/api/cron/reminder/jourj",
+      "schedule": "0 7 11 11 *"
+    }
+  ]
 }

@@ -109,6 +109,12 @@
       </div>
     </div>
 
+    <div class="panel" style="margin-top:14px">
+      <h3>Rappels par e-mail</h3>
+      <div class="switch" style="margin-bottom:12px"><span>Envoi automatique (mardi 10/11 vers 18h, mercredi 11/11 vers 8h)</span><button class="tgl" id="tglAuto" aria-label="Activer ou désactiver les rappels automatiques"></button></div>
+      <div id="remRounds" style="display:grid;gap:10px"></div>
+    </div>
+
     <div class="tools">
       <input type="search" id="q" placeholder="Rechercher un nom, un e-mail, un numéro…">
       <div class="inline">
@@ -169,7 +175,7 @@ $('lform').onsubmit = async (e) => {
 $('logout').onclick = async () => { await fetch('/api/logout', { method: 'POST' }); showLogin(); };
 
 let stats = null;
-async function load() { await Promise.all([loadStats(), loadRows()]); }
+async function load() { await Promise.all([loadStats(), loadRows(), loadReminders()]); }
 setInterval(() => { if (!$('app').classList.contains('hidden') && !document.hidden) load().catch(() => {}); }, 20000);
 
 async function loadStats() {
@@ -322,6 +328,39 @@ $('saveNotify').onclick = async () => {
 };
 $('saveCap').onclick = async () => {
   try { await api('/api/admin/settings', { capacity: Number($('cap').value) }); toast('Jauge mise à jour'); $('cap').blur(); loadStats(); }
+  catch (e) { toast(e.message); }
+};
+
+let remState = null;
+async function loadReminders() {
+  const r = remState = await api('/api/admin/reminders');
+  $('tglAuto').classList.toggle('on', r.auto);
+  const box = $('remRounds'); box.innerHTML = '';
+  Object.entries(r.rounds).forEach(([key, x]) => {
+    const row = document.createElement('div'); row.className = 'item';
+    row.style.cssText = 'display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px';
+    const info = document.createElement('div');
+    info.innerHTML = '<div style="font-weight:600"></div><div class="muted" style="font-size:13px"></div>';
+    info.children[0].textContent = x.label;
+    info.children[1].textContent = x.sent + ' / ' + x.total + ' envoyés' + (x.failed ? ' · ' + x.failed + ' en échec' : '') + (x.sent >= x.total && x.total ? ' · terminé' : '');
+    const acts = document.createElement('div'); acts.className = 'acts';
+    const t = document.createElement('button'); t.textContent = 'M’envoyer un test';
+    t.onclick = async () => { t.disabled = true; try { const j = await api('/api/admin/reminders/' + key + '/test', {}); toast('Test envoyé à ' + j.to); } catch (e) { toast(e.message); } t.disabled = false; };
+    const go = document.createElement('button'); go.textContent = x.sent ? 'Envoyer aux restants' : 'Envoyer maintenant';
+    go.disabled = x.total > 0 && x.sent >= x.total;
+    go.onclick = async () => {
+      const left = x.total - x.sent;
+      if (!(await confirmBox('Envoyer « ' + x.label + ' » à ' + left + ' personne(s) maintenant ? Chaque personne ne le reçoit qu’une fois.'))) return;
+      go.disabled = true;
+      try { const j = await api('/api/admin/reminders/' + key + '/send', {}); toast(j.now_sent + ' envoyé(s)' + (j.now_failed ? ', ' + j.now_failed + ' en échec (quota atteint ?)' : '') + ' · total ' + j.sent_total + '/' + j.total); }
+      catch (e) { toast(e.message); }
+      loadReminders();
+    };
+    acts.append(t, go); row.append(info, acts); box.appendChild(row);
+  });
+}
+$('tglAuto').onclick = async () => {
+  try { await api('/api/admin/settings', { reminders_auto: !remState.auto }); toast(remState.auto ? 'Rappels automatiques désactivés' : 'Rappels automatiques activés'); loadReminders(); }
   catch (e) { toast(e.message); }
 };
 

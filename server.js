@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const config = require('./src/config');
 const db = require('./src/db');
 const { renderTicket } = require('./src/ticket');
-const { sendTicketEmail, sendAdminNotification } = require('./src/mail');
+const { sendTicketEmail, sendAdminNotification, sendReminderBatch, buildReminder, sendPlain, ROUNDS } = require('./src/mail');
 
 const app = express();
 if (config.TRUST_PROXY) app.set('trust proxy', 1);
@@ -511,6 +511,91 @@ admin.delete('/registrations/:id', async (req, res, next) => {
   }
 });
 
+/* ---------- rappels ---------- */
+// Fenêtres autorisées pour l'envoi automatique (heure de Bruxelles)
+const ROUND_WINDOWS = {
+  veille: ['2026-11-10T00:00:00+01:00', '2026-11-11T00:00:00+01:00'],
+  jourj: ['2026-11-11T06:00:00+01:00', '2026-11-11T14:00:00+01:00'],
+};
+
+async function reminderStats(round) {
+  const { rows } = await db.pool.query(
+    `SELECT count(*)::int AS total,
+            count(m.sent_at)::int AS sent,
+            count(*) FILTER (WHERE m.error IS NOT NULL AND m.sent_at IS NULL)::int AS failed
+     FROM registrations r LEFT JOIN reminders m ON m.reg_id = r.id AND m.round = $1
+     WHERE r.cancelled_at IS NULL`, [round]);
+  return rows[0];
+}
+
+/** Envoie le rappel aux inscrits actifs qui ne l'ont pas encore reçu (par lots de 90). */
+async function runReminderRound(round, maxBatches = 2) {
+  if (!ROUNDS[round]) throw new Error('round inconnu');
+  if (!config.MAIL_PROVIDER) throw new Error('Envoi e-mail non configuré');
+  let sent = 0, failed = 0;
+  for (let b = 0; b < maxBatches; b++) {
+    const { rows } = await db.pool.query(
+      `SELECT r.* FROM registrations r
+       LEFT JOIN reminders m ON m.reg_id = r.id AND m.round = $1
+       WHERE r.cancelled_at IS NULL AND m.sent_at IS NULL AND (m.error IS NULL OR $2)
+       ORDER BY r.number LIMIT 90`, [round, b === 0]);
+    if (!rows.length) break;
+    const results = await sendReminderBatch(rows, round);
+    for (const x of results) {
+      await db.pool.query(
+        `INSERT INTO reminders(reg_id, round, sent_at, error) VALUES ($1,$2,$3,$4)
+         ON CONFLICT (reg_id, round) DO UPDATE SET sent_at = EXCLUDED.sent_at, error = EXCLUDED.error`,
+        [x.reg_id, round, x.ok ? new Date() : null, x.ok ? null : x.error]);
+      x.ok ? sent++ : failed++;
+    }
+    if (failed) break; // quota ou erreur : on s'arrête, on pourra relancer
+  }
+  const st = await reminderStats(round);
+  return { now_sent: sent, now_failed: failed, total: st.total, sent_total: st.sent, failed_total: st.failed };
+}
+
+// Déclenché automatiquement par Vercel Cron (vercel.json). Sans effet hors de la fenêtre prévue,
+// et chaque personne ne reçoit chaque rappel qu'une fois.
+app.get('/api/cron/reminder/:round', async (req, res, next) => {
+  try {
+    const w = ROUND_WINDOWS[req.params.round];
+    if (!w) return res.status(404).json({ error: 'round inconnu' });
+    const now = Date.now();
+    if (now < Date.parse(w[0]) || now > Date.parse(w[1])) return res.json({ skipped: 'hors fenêtre' });
+    if ((await db.getSetting('reminders_auto', 'true')) !== 'true') return res.json({ skipped: 'désactivé' });
+    const r = await runReminderRound(req.params.round);
+    console.log('[rappel auto]', req.params.round, r);
+    res.json(r);
+  } catch (e) { next(e); }
+});
+
+admin.get('/reminders', async (req, res, next) => {
+  try {
+    const out = { auto: (await db.getSetting('reminders_auto', 'true')) === 'true', rounds: {} };
+    for (const k of Object.keys(ROUNDS)) out.rounds[k] = { label: ROUNDS[k].label, window: ROUND_WINDOWS[k], ...(await reminderStats(k)) };
+    res.json(out);
+  } catch (e) { next(e); }
+});
+
+admin.post('/reminders/:round/send', async (req, res, next) => {
+  try {
+    if (!ROUNDS[req.params.round]) return res.status(404).json({ error: 'round inconnu' });
+    res.json(await runReminderRound(req.params.round));
+  } catch (e) { next(e); }
+});
+
+admin.post('/reminders/:round/test', async (req, res, next) => {
+  try {
+    if (!ROUNDS[req.params.round]) return res.status(404).json({ error: 'round inconnu' });
+    const extra = await db.getSetting('notify_emails', '');
+    const to = [...new Set(`${config.ADMIN_NOTIFY_EMAIL},${extra}`.split(/[,;\s]+/).map((e) => e.trim()).filter(Boolean))].slice(0, 1);
+    if (!to.length) return res.status(400).json({ error: "Aucune adresse de notification configurée." });
+    const m = buildReminder({ id: 0, number: 1, first_name: 'Victor', last_name: 'Test', email: to[0], token: 'exemple' }, req.params.round);
+    await sendPlain(to, '[TEST] ' + m.subject, m.html, m.text);
+    res.json({ ok: true, to: to[0] });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
 admin.post('/settings', async (req, res, next) => {
   try {
     const b = req.body || {};
@@ -521,6 +606,7 @@ admin.post('/settings', async (req, res, next) => {
       if (list.length > 5) return res.status(400).json({ error: '5 adresses maximum.' });
       await db.setSetting('notify_emails', list.join(','));
     }
+    if (b.reminders_auto !== undefined) await db.setSetting('reminders_auto', b.reminders_auto ? 'true' : 'false');
     if (b.registration_open !== undefined) await db.setSetting('registration_open', b.registration_open ? 'true' : 'false');
     if (b.capacity !== undefined) {
       const c = Math.max(1, Math.min(5000, Number(b.capacity) || config.CAPACITY));

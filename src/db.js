@@ -40,6 +40,13 @@ async function init() {
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS reminders (
+      reg_id  INTEGER NOT NULL,
+      round   TEXT NOT NULL,
+      sent_at TIMESTAMPTZ,
+      error   TEXT,
+      PRIMARY KEY (reg_id, round)
+    );
     CREATE TABLE IF NOT EXISTS scan_log (
       id         SERIAL PRIMARY KEY,
       at         TIMESTAMPTZ NOT NULL DEFAULT now(),
